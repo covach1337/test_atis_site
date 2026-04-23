@@ -313,7 +313,7 @@ function FrameSequencer() {
     return () => window.removeEventListener('resize', resize);
   }, []);
 
-  // Mobile: scroll drives frame index
+  // Mobile: scroll drives frame index + currentStep
   React.useEffect(() => {
     if (!isMobile) return;
     const handleScroll = () => {
@@ -325,6 +325,8 @@ function FrameSequencer() {
         frameIdxRef.current = idx;
         drawMobileFrame(idx);
       }
+      const step = p < 0.34 ? 0 : p < 0.67 ? 1 : 2;
+      setCurrentStep(step);
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
@@ -386,9 +388,8 @@ function FrameSequencer() {
     }
   };
 
-  // Desktop: GSAP pin
+  // GSAP pin — both mobile and desktop
   React.useEffect(() => {
-    if (isMobile) return;
     const gsap = window.gsap, ST = window.ScrollTrigger;
     if (!gsap || !ST) return;
     gsap.registerPlugin(ST);
@@ -448,69 +449,104 @@ function FrameSequencer() {
   ];
 
   return (
-    <section className="seq" ref={stageRef} style={{ position: "relative", background: "var(--bg)", overflow: isMobile ? "visible" : "hidden" }}>
+    <section className="seq" ref={stageRef} style={{ position: "relative", background: "var(--bg)", overflow: "hidden" }}>
       <div style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 70% 20%, rgba(238,53,36,0.03) 0%, rgba(64,83,97,0.00) 70%)", pointerEvents: "none", zIndex: 0 }} />
 
       <div className="seq-sticky" ref={pinRef} style={{ position: "relative", zIndex: 1 }}>
 
-        {/* LEFT PANEL */}
-        <div className="seq-panel">
-          <div className="seq-skel-wrap" style={{ opacity: !loaded ? 1 : 0, transition: 'opacity 0.7s ease' }}>
-            <div className="seq-skel-card">
-              <div className="skel skel-tag" /><div className="skel skel-num" />
-              <div className="skel skel-h1" /><div className="skel skel-h2" />
-              <div className="skel skel-p" /><div className="skel skel-p" style={{ width: '80%' }} />
-              <div className="skel skel-p" style={{ width: '60%' }} />
-              <div style={{ flex: 1 }} /><div className="skel skel-btn" />
-            </div>
-          </div>
-
-          {captions.map((c, i) => {
-            const isActive = i === currentStep;
-            return (
-              <div key={i} className="seq-detail-card" style={{ opacity: !loaded ? 0 : (isActive ? 1 : 0), pointerEvents: isActive ? 'auto' : 'none', transition: 'opacity 0.3s ease' }}>
-                <div className="seq-detail-num mono">{c.num} <span style={{ opacity: 0.4 }}>/ 03</span></div>
-                <h3 className="seq-detail-title">{c.title}</h3>
-                <p className="seq-detail-body">{c.body}</p>
-                <div className="seq-detail-spacer" />
-                <a href="#lineup" className="seq-btn-more">
-                  Подробнее
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                </a>
+        {/* Desktop: left panel */}
+        {!isMobile && (
+          <div className="seq-panel">
+            <div className="seq-skel-wrap" style={{ opacity: !loaded ? 1 : 0, transition: 'opacity 0.7s ease' }}>
+              <div className="seq-skel-card">
+                <div className="skel skel-tag" /><div className="skel skel-num" />
+                <div className="skel skel-h1" /><div className="skel skel-h2" />
+                <div className="skel skel-p" /><div className="skel skel-p" style={{ width: '80%' }} />
+                <div className="skel skel-p" style={{ width: '60%' }} />
+                <div style={{ flex: 1 }} /><div className="skel skel-btn" />
               </div>
-            );
-          })}
-
-        </div>
-
-        {/* RIGHT — video (desktop) or canvas (mobile) */}
-        <div className="seq-canvas-wrap" style={{ background: 'var(--bg)' }}>
-          {isMobile ? (
-            <canvas ref={canvasRef} className="seq-canvas" />
-          ) : (
-            <video ref={videoRef} className="seq-canvas" muted playsInline preload="auto" style={{ objectFit: 'cover', width: '100%', height: '100%' }}>
-              <source src="frames.webm" type="video/webm" />
-              <source src="frames.mp4" type="video/mp4" />
-            </video>
-          )}
-
-          {/* HUD */}
-          <div className="seq-hud-top">
-            <div className="seq-counter mono">Этап <span className="seq-num">{String(currentStep + 1).padStart(2, '0')}</span> / 03</div>
-            <div className="seq-progress"><div className="seq-track"><div className="seq-bar" style={{ width: ((currentStep + 1) / 3 * 100) + '%' }} /></div></div>
+            </div>
+            {captions.map((c, i) => {
+              const isActive = i === currentStep;
+              return (
+                <div key={i} className="seq-detail-card" style={{ opacity: !loaded ? 0 : (isActive ? 1 : 0), pointerEvents: isActive ? 'auto' : 'none', transition: 'opacity 0.3s ease' }}>
+                  <div className="seq-detail-num mono">{c.num} <span style={{ opacity: 0.4 }}>/ 03</span></div>
+                  <h3 className="seq-detail-title">{c.title}</h3>
+                  <p className="seq-detail-body">{c.body}</p>
+                  <div className="seq-detail-spacer" />
+                  <a href="#lineup" className="seq-btn-more">Подробнее
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </a>
+                </div>
+              );
+            })}
           </div>
+        )}
 
-          {!loaded && isMobile && (
-            <div className="seq-loading mono">Загрузка {Math.round(loadedCount / TOTAL * 100)}%</div>
-          )}
-          {!loaded && !isMobile && (
-            <div className="seq-loading mono">Загрузка…</div>
+        {/* Canvas / Video */}
+        <div className="seq-canvas-wrap">
+          {isMobile
+            ? <canvas ref={canvasRef} className="seq-canvas" />
+            : <video ref={videoRef} className="seq-canvas" muted playsInline preload="auto" style={{ objectFit: 'cover', width: '100%', height: '100%' }}>
+                <source src="frames.webm" type="video/webm" />
+                <source src="frames.mp4" type="video/mp4" />
+              </video>
+          }
+
+          {/* Mobile: top overlay (empty area above 16:9 image) */}
+          {isMobile && (
+            <div className="seq-mob-top">
+              {!loaded ? (
+                <div className="seq-mob-skel">
+                  <div className="skel" style={{ width: '40%', height: 11, borderRadius: 6 }} />
+                  <div className="skel" style={{ width: '70%', height: 18, borderRadius: 6 }} />
+                </div>
+              ) : (
+                <>
+                  <div className="seq-mob-progress">
+                    {captions.map((_, i) => <div key={i} className={`seq-mob-dot${i === currentStep ? ' active' : ''}`} />)}
+                  </div>
+                  <div className="seq-mob-step mono">ЭТАП {String(currentStep + 1).padStart(2, '0')} / 03</div>
+                </>
+              )}
+            </div>
           )}
 
-          <div className="seq-hint mono">
-            <span>{currentStep < 2 ? 'Прокрутите → следующий этап' : 'Прокрутите → далее'}</span>
-            <svg width="14" height="22" viewBox="0 0 14 22" fill="none"><rect x="0.5" y="0.5" width="13" height="21" rx="6.5" stroke="currentColor"/><circle cx="7" cy="7" r="2" fill="currentColor"><animate attributeName="cy" values="6;12;6" dur="1.6s" repeatCount="indefinite"/></circle></svg>
-          </div>
+          {/* Mobile: bottom overlay (empty area below 16:9 image) */}
+          {isMobile && (
+            <div className="seq-mob-bot">
+              {!loaded ? (
+                <div className="seq-mob-skel">
+                  <div className="skel" style={{ width: '55%', height: 22, borderRadius: 6 }} />
+                  <div className="skel" style={{ width: '80%', height: 14, borderRadius: 6 }} />
+                  <div className="skel" style={{ width: '40%', height: 32, borderRadius: 100, marginTop: 4 }} />
+                  <div className="seq-mob-loading mono" style={{ marginTop: 8 }}>Загрузка {Math.round(loadedCount / TOTAL * 100)}%</div>
+                </div>
+              ) : (
+                <>
+                  <div className="seq-mob-title" style={{ transition: 'opacity 0.3s' }}>{captions[currentStep].title}</div>
+                  <a href="#lineup" className="seq-mob-btn">Подробнее
+                    <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </a>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Desktop: HUD + hint */}
+          {!isMobile && (
+            <>
+              <div className="seq-hud-top">
+                <div className="seq-counter mono">Этап <span className="seq-num">{String(currentStep + 1).padStart(2, '0')}</span> / 03</div>
+                <div className="seq-progress"><div className="seq-track"><div className="seq-bar" style={{ width: ((currentStep + 1) / 3 * 100) + '%' }} /></div></div>
+              </div>
+              {!loaded && <div className="seq-loading mono">Загрузка…</div>}
+              <div className="seq-hint mono">
+                <span>{currentStep < 2 ? 'Прокрутите → следующий этап' : 'Прокрутите → далее'}</span>
+                <svg width="14" height="22" viewBox="0 0 14 22" fill="none"><rect x="0.5" y="0.5" width="13" height="21" rx="6.5" stroke="currentColor"/><circle cx="7" cy="7" r="2" fill="currentColor"><animate attributeName="cy" values="6;12;6" dur="1.6s" repeatCount="indefinite"/></circle></svg>
+              </div>
+            </>
+          )}
         </div>
 
       </div>
