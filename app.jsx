@@ -231,50 +231,64 @@ function Hero() {
 }
 
 window.Hero = Hero;
-/* FrameSequencer — desktop: video scrubbing. Mobile: canvas with 3 static PNG frames. */
+/* FrameSequencer — desktop: video scrubbing. Mobile: canvas + 240 WebP frames scroll-driven. */
 
 function FrameSequencer() {
   const isMobile = window.innerWidth < 760;
   const TOTAL = 240;
-  // Frame indices for each step (15%, 50%, 85% of sequence)
-  const MOBILE_FRAME_INDICES = [36, 120, 203];
 
-  const stageRef   = React.useRef(null);
-  const pinRef     = React.useRef(null);
-  const videoRef   = React.useRef(null);
-  const canvasRef  = React.useRef(null);
-  const mobileImgs = React.useRef([null, null, null]);
-  const stRef      = React.useRef(null);
-  const lockedRef  = React.useRef(false);
+  const stageRef    = React.useRef(null);
+  const pinRef      = React.useRef(null);
+  const videoRef    = React.useRef(null);
+  const canvasRef   = React.useRef(null);
+  const framesRef   = React.useRef([]);
+  const frameIdxRef = React.useRef(0);
+  const stRef       = React.useRef(null);
+  const lockedRef   = React.useRef(false);
   const [loaded,      setLoaded]      = React.useState(false);
+  const [loadedCount, setLoadedCount] = React.useState(0);
   const [currentStep, setCurrentStep] = React.useState(0);
 
   const STEP_PROGRESS = [0.15, 0.5, 0.85, 0.95];
 
-  // Mobile: load 3 key PNG frames only
+  // Mobile: load all 240 WebP frames in batches
   React.useEffect(() => {
     if (!isMobile) return;
-    let done = 0;
-    MOBILE_FRAME_INDICES.forEach((frameIdx, i) => {
+    let cancelled = false, count = 0;
+    const imgs = new Array(TOTAL);
+    const loadOne = (i) => new Promise((resolve) => {
       const img = new Image();
-      img.onload = () => {
-        mobileImgs.current[i] = img;
-        done++;
-        if (done === 3) { setLoaded(true); drawMobile(0); }
-      };
-      img.onerror = () => { done++; if (done === 3) setLoaded(true); };
-      img.src = `frames/${String(frameIdx + 1).padStart(3, '0')}.png`;
+      img.onload = () => { imgs[i] = img; resolve(); };
+      img.onerror = () => resolve();
+      img.src = `frames-mobile/${String(i + 1).padStart(3, '0')}.webp`;
     });
+    (async () => {
+      const BATCH = 20;
+      for (let start = 0; start < TOTAL; start += BATCH) {
+        if (cancelled) return;
+        await Promise.all(Array.from({ length: Math.min(BATCH, TOTAL - start) }, (_, k) => loadOne(start + k)));
+        count += Math.min(BATCH, TOTAL - start);
+        if (!cancelled) {
+          framesRef.current = imgs;
+          setLoadedCount(count);
+          if (count === TOTAL) setLoaded(true);
+          if (count === BATCH) drawMobileFrame(0); // first batch ready → show frame
+        }
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  const drawMobile = (step) => {
+  const drawMobileFrame = (idx) => {
     const canvas = canvasRef.current;
-    const img = mobileImgs.current[step];
+    const img = framesRef.current[idx];
     if (!canvas || !img) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const rect = canvas.getBoundingClientRect();
-    canvas.width  = rect.width  * dpr;
-    canvas.height = rect.height * dpr;
+    if (canvas.width !== rect.width * dpr) {
+      canvas.width  = rect.width  * dpr;
+      canvas.height = rect.height * dpr;
+    }
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const scale = Math.min(canvas.width / img.naturalWidth, canvas.height / img.naturalHeight) * 0.95;
@@ -282,10 +296,39 @@ function FrameSequencer() {
     ctx.drawImage(img, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
   };
 
+  // Mobile: resize canvas
   React.useEffect(() => {
     if (!isMobile) return;
-    drawMobile(currentStep);
-  }, [currentStep, loaded]);
+    const resize = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const rect = canvas.getBoundingClientRect();
+      canvas.width  = rect.width  * dpr;
+      canvas.height = rect.height * dpr;
+      drawMobileFrame(frameIdxRef.current);
+    };
+    resize();
+    window.addEventListener('resize', resize);
+    return () => window.removeEventListener('resize', resize);
+  }, []);
+
+  // Mobile: scroll drives frame index
+  React.useEffect(() => {
+    if (!isMobile) return;
+    const handleScroll = () => {
+      const section = stageRef.current;
+      if (!section) return;
+      const p = Math.max(0, Math.min(1, (window.scrollY - section.offsetTop) / Math.max(1, section.offsetHeight - window.innerHeight)));
+      const idx = Math.min(TOTAL - 1, Math.round(p * (TOTAL - 1)));
+      if (idx !== frameIdxRef.current) {
+        frameIdxRef.current = idx;
+        drawMobileFrame(idx);
+      }
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Desktop: video ready listener
   React.useEffect(() => {
@@ -397,24 +440,6 @@ function FrameSequencer() {
     return () => { window.removeEventListener('touchstart', onTouchStart); window.removeEventListener('touchend', onTouchEnd); };
   }, [currentStep]);
 
-  // Mobile: swipe between steps
-  React.useEffect(() => {
-    if (!isMobile) return;
-    let touchStartY = 0;
-    const onTouchStart = (e) => { touchStartY = e.touches[0].clientY; };
-    const onTouchEnd = (e) => {
-      const dy = touchStartY - e.changedTouches[0].clientY;
-      if (Math.abs(dy) < 40) return;
-      const dir = dy > 0 ? 1 : -1;
-      const newStep = currentStep + dir;
-      if (newStep >= 0 && newStep < 3) goToStep(newStep);
-    };
-    const section = stageRef.current;
-    if (!section) return;
-    section.addEventListener('touchstart', onTouchStart, { passive: true });
-    section.addEventListener('touchend', onTouchEnd, { passive: true });
-    return () => { section.removeEventListener('touchstart', onTouchStart); section.removeEventListener('touchend', onTouchEnd); };
-  }, [currentStep]);
 
   const captions = [
     { num: "01", title: "Системы электропитания ЖАТ", body: "Проектируем и производим системы электроснабжения для объектов железнодорожной автоматики и телемеханики. Надёжность в каждом узле." },
@@ -456,14 +481,6 @@ function FrameSequencer() {
             );
           })}
 
-          {/* Mobile step dots */}
-          {isMobile && loaded && (
-            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-              {captions.map((_, i) => (
-                <button key={i} onClick={() => goToStep(i)} style={{ width: i === currentStep ? 20 : 6, height: 6, borderRadius: 3, background: i === currentStep ? 'var(--accent)' : 'rgba(255,255,255,0.25)', border: 'none', cursor: 'pointer', padding: 0, transition: 'all 0.3s' }} />
-              ))}
-            </div>
-          )}
         </div>
 
         {/* RIGHT — video (desktop) or canvas (mobile) */}
@@ -483,10 +500,15 @@ function FrameSequencer() {
             <div className="seq-progress"><div className="seq-track"><div className="seq-bar" style={{ width: ((currentStep + 1) / 3 * 100) + '%' }} /></div></div>
           </div>
 
-          {!loaded && <div className="seq-loading mono">Загрузка…</div>}
+          {!loaded && isMobile && (
+            <div className="seq-loading mono">Загрузка {Math.round(loadedCount / TOTAL * 100)}%</div>
+          )}
+          {!loaded && !isMobile && (
+            <div className="seq-loading mono">Загрузка…</div>
+          )}
 
           <div className="seq-hint mono">
-            <span>{isMobile ? 'Свайп для следующего этапа' : (currentStep < 2 ? 'Прокрутите → следующий этап' : 'Прокрутите → далее')}</span>
+            <span>{currentStep < 2 ? 'Прокрутите → следующий этап' : 'Прокрутите → далее'}</span>
             <svg width="14" height="22" viewBox="0 0 14 22" fill="none"><rect x="0.5" y="0.5" width="13" height="21" rx="6.5" stroke="currentColor"/><circle cx="7" cy="7" r="2" fill="currentColor"><animate attributeName="cy" values="6;12;6" dur="1.6s" repeatCount="indefinite"/></circle></svg>
           </div>
         </div>
