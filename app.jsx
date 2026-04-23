@@ -231,105 +231,55 @@ function Hero() {
 }
 
 window.Hero = Hero;
-/* FrameSequencer — GSAP ScrollTrigger-pinned canvas. Scroll drives frame index. */
+/* FrameSequencer — GSAP ScrollTrigger-pinned video scrubbing. Scroll drives video.currentTime. */
 
 function FrameSequencer() {
   const TOTAL = 240;
   const stageRef  = React.useRef(null);
   const pinRef    = React.useRef(null);
-  const canvasRef = React.useRef(null);
-  const framesRef = React.useRef([]);
-  const stateRef  = React.useRef({ frame: 0 });
+  const videoRef  = React.useRef(null);
   const stRef     = React.useRef(null);
   const lockedRef = React.useRef(false);
-  const [loaded,   setLoaded]   = React.useState(0);
+  const [loaded,   setLoaded]   = React.useState(false);
   const [progress, setProgress] = React.useState(0);
   const [currentStep, setCurrentStep] = React.useState(0);
 
-  // Прогресс для каждого этапа (какой кадр соответствует этапу)
-  const STEP_PROGRESS = [0.15, 0.5, 0.85, 0.95]; // кадры для этапов + финальный кадр перед выходом
+  const STEP_PROGRESS = [0.15, 0.5, 0.85, 0.95];
   const STEP_NAMES = ['01 / 03', '02 / 03', '03 / 03'];
 
   React.useEffect(() => {
-    let cancelled = false, count = 0;
-    const imgs = new Array(TOTAL);
-    const tok = (() => { try { return new URL(location.href).searchParams.get('t'); } catch { return null; } })();
-    const q = tok ? `?t=${tok}` : '';
-    const loadOne = (i) => new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => { imgs[i] = img; resolve(); };
-      img.onerror = () => resolve();
-      img.src = `frames/${String(i + 1).padStart(3, '0')}.png${q}`;
-    });
-    (async () => {
-      const BATCH = 12;
-      for (let start = 0; start < TOTAL; start += BATCH) {
-        if (cancelled) return;
-        await Promise.all(Array.from({ length: Math.min(BATCH, TOTAL - start) }, (_, k) => loadOne(start + k)));
-        count += Math.min(BATCH, TOTAL - start);
-        if (!cancelled) setLoaded(count);
-      }
-      framesRef.current = imgs;
-      draw();
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  const draw = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const idx = Math.min(TOTAL - 1, Math.max(0, Math.round(stateRef.current.frame)));
-    const img = framesRef.current[idx] || framesRef.current.find(Boolean);
-    if (!img) return;
-    const ctx = canvas.getContext('2d');
-    const cw = canvas.width, ch = canvas.height;
-    const isMobile = window.innerWidth < 760;
-    // Mobile: contain fit (zoom out). Desktop: cover fit.
-    const scale = isMobile
-      ? Math.min(cw / img.naturalWidth, ch / img.naturalHeight) * 0.95
-      : Math.max(cw / img.naturalWidth, ch / img.naturalHeight);
-    ctx.clearRect(0, 0, cw, ch);
-    ctx.drawImage(img, (cw - img.naturalWidth * scale) / 2, (ch - img.naturalHeight * scale) / 2,
-                  img.naturalWidth * scale, img.naturalHeight * scale);
-  };
-
-  const resizeCanvas = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const rect = canvas.getBoundingClientRect();
-    canvas.width  = rect.width  * dpr;
-    canvas.height = rect.height * dpr;
-    draw();
-  };
-
-  React.useEffect(() => {
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-    return () => window.removeEventListener('resize', resizeCanvas);
-  }, []);
-
-  // Анимированный переход к кадру
-  const animateToFrame = (targetProgress) => {
-    const startFrame = stateRef.current.frame;
-    const targetFrame = targetProgress * (TOTAL - 1);
-    const duration = 800; // ms
-    const startTime = performance.now();
-    
-    const animate = (now) => {
-      const elapsed = now - startTime;
-      const t = Math.min(1, elapsed / duration);
-      const ease = 1 - Math.pow(1 - t, 3); // cubic out
-      const newFrame = startFrame + (targetFrame - startFrame) * ease;
-      stateRef.current.frame = newFrame;
-      draw();
-      setProgress(newFrame / (TOTAL - 1));
-      
-      if (t < 1) {
-        requestAnimationFrame(animate);
-      }
+    const video = videoRef.current;
+    if (!video) return;
+    const onReady = () => setLoaded(true);
+    video.addEventListener('canplaythrough', onReady);
+    video.addEventListener('loadeddata', onReady);
+    return () => {
+      video.removeEventListener('canplaythrough', onReady);
+      video.removeEventListener('loadeddata', onReady);
     };
-    
+  }, []);
+
+  const seekTo = (targetProgress) => {
+    const video = videoRef.current;
+    if (!video || !video.duration) return;
+    video.currentTime = targetProgress * video.duration;
+    setProgress(targetProgress);
+  };
+
+  const animateToFrame = (targetProgress) => {
+    const video = videoRef.current;
+    if (!video || !video.duration) return;
+    const startTime = video.currentTime;
+    const targetTime = targetProgress * video.duration;
+    const duration = 800;
+    const start = performance.now();
+    const animate = (now) => {
+      const t = Math.min(1, (now - start) / duration);
+      const ease = 1 - Math.pow(1 - t, 3);
+      video.currentTime = startTime + (targetTime - startTime) * ease;
+      setProgress(video.currentTime / video.duration);
+      if (t < 1) requestAnimationFrame(animate);
+    };
     requestAnimationFrame(animate);
   };
   const STEPS = [0, 1, 2, 'exit'];  // 0,1,2 - этапы, 'exit' - шаг выхода
@@ -401,7 +351,7 @@ function FrameSequencer() {
     return () => { st.kill(); stRef.current = null; };
   }, []);
 
-  // Mobile: drive frames by scroll position (no snapping)
+  // Mobile: drive video by scroll position (no snapping)
   React.useEffect(() => {
     if (window.innerWidth >= 760) return;
     const handleScroll = () => {
@@ -410,9 +360,8 @@ function FrameSequencer() {
       const seqTop = seqSection.offsetTop;
       const seqHeight = seqSection.offsetHeight;
       const scrollY = window.scrollY;
-      const progress = Math.max(0, Math.min(1, (scrollY - seqTop) / Math.max(1, seqHeight - window.innerHeight)));
-      stateRef.current.frame = progress * (TOTAL - 1);
-      draw();
+      const p = Math.max(0, Math.min(1, (scrollY - seqTop) / Math.max(1, seqHeight - window.innerHeight)));
+      seekTo(p);
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
@@ -484,8 +433,6 @@ function FrameSequencer() {
     { num: "03", title: "Программное обеспечение", body: "ТД-ЭЛ, ПУМА, VORTEX — собственные программные продукты для мониторинга, аналитики и управления бизнес-процессами." },
   ];
 
-  const loadPct = Math.round((loaded / TOTAL) * 100);
-
   return (
     <section className="seq" ref={stageRef} style={{
       position: "relative",
@@ -505,7 +452,7 @@ function FrameSequencer() {
 
         {/* LEFT PANEL */}
         <div className="seq-panel">
-          <div className="seq-skel-wrap" style={{ opacity: loaded < TOTAL ? 1 : 0, transition: 'opacity 0.7s ease' }}>
+          <div className="seq-skel-wrap" style={{ opacity: !loaded ? 1 : 0, transition: 'opacity 0.7s ease' }}>
             <div className="seq-skel-card">
               <div className="skel skel-tag" />
               <div className="skel skel-num" />
@@ -524,7 +471,7 @@ function FrameSequencer() {
             const isActive = i === currentStep;
             return (
               <div key={i} className="seq-detail-card" style={{
-                opacity: loaded < TOTAL ? 0 : (isActive ? 1 : 0),
+                opacity: !loaded ? 0 : (isActive ? 1 : 0),
                 pointerEvents: isActive ? 'auto' : 'none',
                 transition: 'opacity 0.3s ease'
               }}>
@@ -543,9 +490,19 @@ function FrameSequencer() {
           })}
         </div>
 
-        {/* RIGHT — canvas */}
+        {/* RIGHT — video */}
         <div className="seq-canvas-wrap">
-          <canvas ref={canvasRef} className="seq-canvas" />
+          <video
+            ref={videoRef}
+            className="seq-canvas"
+            muted
+            playsInline
+            preload="auto"
+            style={{ objectFit: 'cover', width: '100%', height: '100%' }}
+          >
+            <source src="frames.webm" type="video/webm" />
+            <source src="frames.mp4" type="video/mp4" />
+          </video>
           
           {/* HUD */}
           <div className="seq-hud-top">
@@ -559,8 +516,8 @@ function FrameSequencer() {
             </div>
           </div>
 
-          {loaded < TOTAL && (
-            <div className="seq-loading mono">Загрузка {loadPct}%</div>
+          {!loaded && (
+            <div className="seq-loading mono">Загрузка…</div>
           )}
 
           {/* Подсказка */}

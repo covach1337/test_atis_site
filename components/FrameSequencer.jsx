@@ -1,87 +1,24 @@
-/* FrameSequencer — GSAP ScrollTrigger-pinned canvas playback of a PNG sequence.
-   True pinning: the stage is fixed to the viewport while scroll drives the
-   frame index via ScrollTrigger's scrub timeline. */
+/* FrameSequencer — GSAP ScrollTrigger-pinned video scrubbing.
+   Scroll drives video.currentTime instead of a PNG array. */
 
 function FrameSequencer() {
-  const TOTAL = 240;
   const stageRef = React.useRef(null);
   const pinRef = React.useRef(null);
-  const canvasRef = React.useRef(null);
-  const framesRef = React.useRef([]);
-  const stateRef = React.useRef({ frame: 0 });
-  const [loaded, setLoaded] = React.useState(0);
+  const videoRef = React.useRef(null);
+  const [ready, setReady] = React.useState(false);
   const [progress, setProgress] = React.useState(0);
 
-  // Pre-load all frames
   React.useEffect(() => {
-    let cancelled = false;
-    let count = 0;
-    const imgs = new Array(TOTAL);
-    // Grab auth token if present (preview environment)
-    const tok = (() => {
-      try { return new URL(location.href).searchParams.get('t'); } catch { return null; }
-    })();
-    const q = tok ? `?t=${tok}` : '';
-    // Prioritize first frame for immediate paint
-    const loadOne = (i) => new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => { imgs[i] = img; resolve(); };
-      img.onerror = () => resolve();
-      img.src = `frames/${String(i + 1).padStart(3, '0')}.png${q}`;
-    });
-    (async () => {
-      // Load in waves of 12 for throughput without thrashing
-      const BATCH = 12;
-      for (let start = 0; start < TOTAL; start += BATCH) {
-        if (cancelled) return;
-        await Promise.all(
-          Array.from({ length: Math.min(BATCH, TOTAL - start) }, (_, k) =>
-            loadOne(start + k)
-          )
-        );
-        count += Math.min(BATCH, TOTAL - start);
-        if (!cancelled) setLoaded(count);
-      }
-      framesRef.current = imgs;
-      // initial draw
-      draw();
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  // Setup canvas sizing
-  const resizeCanvas = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    draw();
-  };
-
-  const draw = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const frames = framesRef.current;
-    const f = stateRef.current.frame;
-    const idx = Math.min(TOTAL - 1, Math.max(0, Math.round(f)));
-    const img = frames[idx] || frames.find(Boolean);
-    if (!img) return;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const cw = canvas.width, ch = canvas.height;
-    const iw = img.naturalWidth, ih = img.naturalHeight;
-    const scale = Math.max(cw / iw, ch / ih);
-    const dw = iw * scale, dh = ih * scale;
-    const dx = (cw - dw) / 2, dy = (ch - dh) / 2;
-    ctx.drawImage(img, dx, dy, dw, dh);
-  };
-
-  React.useEffect(() => {
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-    return () => window.removeEventListener('resize', resizeCanvas);
+    const video = videoRef.current;
+    if (!video) return;
+    const onReady = () => setReady(true);
+    video.addEventListener('canplaythrough', onReady);
+    // also accept 'loadeddata' as fallback
+    video.addEventListener('loadeddata', onReady);
+    return () => {
+      video.removeEventListener('canplaythrough', onReady);
+      video.removeEventListener('loadeddata', onReady);
+    };
   }, []);
 
   // GSAP ScrollTrigger setup
@@ -99,9 +36,11 @@ function FrameSequencer() {
       pinSpacing: false,
       scrub: 0.4,
       onUpdate: (self) => {
-        stateRef.current.frame = self.progress * (TOTAL - 1);
+        const video = videoRef.current;
+        if (video && video.duration) {
+          video.currentTime = self.progress * video.duration;
+        }
         setProgress(self.progress);
-        draw();
       },
     });
 
@@ -129,7 +68,7 @@ function FrameSequencer() {
     return opacity;
   };
 
-  const loadPct = Math.round((loaded / TOTAL) * 100);
+  const TOTAL = 240;
 
   return (
     <section className="seq" ref={stageRef}>
@@ -137,8 +76,8 @@ function FrameSequencer() {
 
         {/* LEFT PANEL — detail card */}
         <div className="seq-panel">
-          {/* Skeleton while frames load */}
-          <div className="seq-skel-wrap" style={{ opacity: loaded < TOTAL ? 1 : 0, transition: 'opacity 0.7s ease' }}>
+          {/* Skeleton while video loads */}
+          <div className="seq-skel-wrap" style={{ opacity: ready ? 0 : 1, transition: 'opacity 0.7s ease' }}>
             <div className="seq-skel-card">
               <div className="skel skel-tag" />
               <div className="skel skel-num" />
@@ -152,9 +91,8 @@ function FrameSequencer() {
             </div>
           </div>
 
-          {/* Detail cards — one per caption, stacked, fade in/out */}
           {captions.map((c, i) => {
-            const opacity = loaded < TOTAL ? 0 : getFade(c);
+            const opacity = ready ? getFade(c) : 0;
             const y = (1 - opacity) * 24;
             return (
               <div key={i} className="seq-detail-card" style={{
@@ -178,9 +116,19 @@ function FrameSequencer() {
           })}
         </div>
 
-        {/* RIGHT — canvas area */}
+        {/* RIGHT — video area */}
         <div className="seq-canvas-wrap">
-          <canvas ref={canvasRef} className="seq-canvas" />
+          <video
+            ref={videoRef}
+            className="seq-canvas"
+            muted
+            playsInline
+            preload="auto"
+            style={{ objectFit: 'cover', width: '100%', height: '100%' }}
+          >
+            <source src="frames.webm" type="video/webm" />
+            <source src="frames.mp4" type="video/mp4" />
+          </video>
           <div className="seq-vignette" />
 
           {/* HUD top */}
@@ -194,8 +142,8 @@ function FrameSequencer() {
           </div>
 
           {/* Loading indicator */}
-          {loaded < TOTAL && (
-            <div className="seq-loading mono">Загрузка {loadPct}%</div>
+          {!ready && (
+            <div className="seq-loading mono">Загрузка…</div>
           )}
 
           {/* Small badge at bottom of video */}
