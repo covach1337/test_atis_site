@@ -454,34 +454,102 @@ function FrameSequencer() {
 
       <div className="seq-sticky" ref={pinRef} style={{ position: "relative", zIndex: 1 }}>
 
-        {/* Desktop: left panel */}
-        {!isMobile && (
-          <div className="seq-panel">
-            <div className="seq-skel-wrap" style={{ opacity: !loaded ? 1 : 0, transition: 'opacity 0.7s ease' }}>
-              <div className="seq-skel-card">
-                <div className="skel skel-tag" /><div className="skel skel-num" />
-                <div className="skel skel-h1" /><div className="skel skel-h2" />
-                <div className="skel skel-p" /><div className="skel skel-p" style={{ width: '80%' }} />
-                <div className="skel skel-p" style={{ width: '60%' }} />
-                <div style={{ flex: 1 }} /><div className="skel skel-btn" />
-              </div>
-            </div>
-            {captions.map((c, i) => {
-              const isActive = i === currentStep;
-              return (
-                <div key={i} className="seq-detail-card" style={{ opacity: !loaded ? 0 : (isActive ? 1 : 0), pointerEvents: isActive ? 'auto' : 'none', transition: 'opacity 0.3s ease' }}>
-                  <div className="seq-detail-num mono">{c.num} <span style={{ opacity: 0.4 }}>/ 03</span></div>
-                  <h3 className="seq-detail-title">{c.title}</h3>
-                  <p className="seq-detail-body">{c.body}</p>
-                  <div className="seq-detail-spacer" />
-                  <a href="#lineup" className="seq-btn-more">Подробнее
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  </a>
-                </div>
-              );
-            })}
-          </div>
-        )}
+  {/* Mobile: bottom overlay — теперь полноценная информационная панель */}
+{isMobile && (
+  <div className="seq-mob-bot" style={{
+    background: "var(--bg)",
+    padding: "24px 20px 32px",
+    marginTop: "-4px", // убираем возможный зазор
+    borderTop: "1px solid var(--line)"
+  }}>
+    {!loaded ? (
+      /* Скелетон загрузки */
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="skel" style={{ width: '45%', height: 20, borderRadius: 8 }} />
+        <div className="skel" style={{ width: '90%', height: 14, borderRadius: 6 }} />
+        <div className="skel" style={{ width: '75%', height: 14, borderRadius: 6 }} />
+        <div className="skel" style={{ width: '50%', height: 44, borderRadius: 100, marginTop: 8 }} />
+        <div className="seq-mob-loading mono" style={{ marginTop: 12, textAlign: "center", color: "var(--ink-dim)" }}>
+          Загрузка {Math.round(loadedCount / TOTAL * 100)}%
+        </div>
+      </div>
+    ) : (
+      /* Полноценный информационный блок */
+      <>
+        <div className="mono" style={{ 
+          fontSize: 11, 
+          color: "var(--accent)", 
+          marginBottom: 12,
+          letterSpacing: "0.1em"
+        }}>
+          {captions[currentStep].tag}
+        </div>
+        
+        <div className="seq-mob-title" style={{
+          fontSize: 24,
+          fontWeight: 700,
+          color: "var(--ink)",
+          marginBottom: 12,
+          lineHeight: 1.2
+        }}>
+          {captions[currentStep].title}
+        </div>
+        
+        <p style={{
+          fontSize: 14,
+          lineHeight: 1.5,
+          color: "var(--ink-dim)",
+          marginBottom: 20
+        }}>
+          {captions[currentStep].body}
+        </p>
+        
+        <a href="#lineup" className="btn-primary" style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 10,
+          marginTop: 8
+        }}>
+          Подробнее
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M1 7h12M8 2l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        </a>
+        
+        {/* Прогресс-точки для навигации */}
+        <div style={{
+          display: "flex",
+          justifyContent: "center",
+          gap: 8,
+          marginTop: 28
+        }}>
+          {captions.map((_, idx) => (
+            <button
+              key={idx}
+              onClick={() => {
+                // скролл к соответствующей позиции
+                const section = stageRef.current;
+                if (section) {
+                  const targetScroll = section.offsetTop + (idx / 3) * (section.offsetHeight - window.innerHeight);
+                  window.scrollTo({ top: targetScroll, behavior: "smooth" });
+                }
+              }}
+              style={{
+                width: currentStep === idx ? 24 : 8,
+                height: 8,
+                borderRadius: 4,
+                background: currentStep === idx ? "var(--accent)" : "var(--line)",
+                border: "none",
+                cursor: "pointer",
+                transition: "all 0.2s ease"
+              }}
+            />
+          ))}
+        </div>
+      </>
+    )}
+  </div>
+)}
 
         {/* Canvas / Video */}
         <div className="seq-canvas-wrap">
