@@ -1104,6 +1104,7 @@ img { max-width: 100%; display: block; }
     padding: 0 16px 12px;
   }
 
+  
   /* Bottom overlay — sits in empty area below the 16:9 image */
   .seq-mob-bot {
     position: absolute;
