@@ -1082,12 +1082,17 @@ img { max-width: 100%; display: block; }
 
 /* ---- Seq on mobile ---- */
 @media (max-width: 760px) {
-  .seq { height: 220vh; }
-  .seq-sticky { height: 85vh; }
+  .seq { height: 300vh; }
+  .seq-sticky {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    height: 100dvh;
+  }
   .seq-panel {
     left: 12px; right: 12px; width: auto;
-    top: auto; bottom: 12px;
-    height: auto; max-height: 200px;
+    top: auto; bottom: 16px;
+    height: auto; max-height: 220px;
   }
   .seq-skel-card { padding: 16px; gap: 8px; }
   .seq-detail-card { padding: 16px 20px; }

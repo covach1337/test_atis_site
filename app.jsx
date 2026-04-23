@@ -448,7 +448,7 @@ function FrameSequencer() {
   ];
 
   return (
-    <section className="seq" ref={stageRef} style={{ position: "relative", background: "var(--bg)", overflow: "hidden" }}>
+    <section className="seq" ref={stageRef} style={{ position: "relative", background: "var(--bg)", overflow: isMobile ? "visible" : "hidden" }}>
       <div style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 70% 20%, rgba(238,53,36,0.03) 0%, rgba(64,83,97,0.00) 70%)", pointerEvents: "none", zIndex: 0 }} />
 
       <div className="seq-sticky" ref={pinRef} style={{ position: "relative", zIndex: 1 }}>
