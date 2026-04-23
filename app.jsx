@@ -443,9 +443,9 @@ function FrameSequencer() {
 
 
   const captions = [
-    { num: "01", title: "Системы электропитания ЖАТ", body: "Проектируем и производим системы электроснабжения для объектов железнодорожной автоматики и телемеханики. Надёжность в каждом узле." },
-    { num: "02", title: "Дизельные электростанции", body: "Резервное электропитание для устройств ЖАТ, связи и бытовых потребителей первой особой категории. Автономность без компромиссов." },
-    { num: "03", title: "Программное обеспечение", body: "ТД-ЭЛ, ПУМА, VORTEX — собственные программные продукты для мониторинга, аналитики и управления бизнес-процессами." },
+    { num: "01", tag: "ЖАТ", title: "Системы электропитания ЖАТ", body: "Проектируем и производим системы электроснабжения для объектов железнодорожной автоматики и телемеханики. Надёжность в каждом узле.", short: "Системы электроснабжения для объектов ЖАТ" },
+    { num: "02", tag: "ЭНЕРГЕТИКА", title: "Дизельные электростанции", body: "Резервное электропитание для устройств ЖАТ, связи и бытовых потребителей первой особой категории. Автономность без компромиссов.", short: "Резервное электропитание без компромиссов" },
+    { num: "03", tag: "ПО", title: "Программное обеспечение", body: "ТД-ЭЛ, ПУМА, VORTEX — собственные программные продукты для мониторинга, аналитики и управления бизнес-процессами.", short: "ТД-ЭЛ · ПУМА · VORTEX — мониторинг и аналитика" },
   ];
 
   return (
@@ -493,25 +493,7 @@ function FrameSequencer() {
               </video>
           }
 
-          {/* Mobile: top overlay (empty area above 16:9 image) */}
-          {isMobile && (
-            <div className="seq-mob-top">
-              {!loaded ? (
-                <div className="seq-mob-skel">
-                  <div className="skel" style={{ width: '40%', height: 11, borderRadius: 6 }} />
-                  <div className="skel" style={{ width: '70%', height: 18, borderRadius: 6 }} />
-                </div>
-              ) : (
-                <>
-                  <div className="seq-mob-progress">
-                    {captions.map((_, i) => <div key={i} className={`seq-mob-dot${i === currentStep ? ' active' : ''}`} />)}
-                  </div>
-                  <div className="seq-mob-step mono">ЭТАП {String(currentStep + 1).padStart(2, '0')} / 03</div>
-                </>
-              )}
-            </div>
-          )}
-
+   
           {/* Mobile: bottom overlay (empty area below 16:9 image) */}
           {isMobile && (
             <div className="seq-mob-bot">
@@ -557,16 +539,6 @@ window.FrameSequencer = FrameSequencer;
 /* Lineup — product cards with whileInView animations */
 
 function Lineup() {
-  const { motion } = window;
-  const cards = [
-    { tag: "ЖАТ", title: "Системы электропитания ЖАТ", desc: "Проектируем и производим системы электроснабжения для объектов железнодорожной автоматики и телемеханики.",
-      meta: [["Направление", "Ж/д автоматика"], ["Тип", "ЖАТ"]], href: "https://www.atis-wdu.ru/power-supply-systems", variant: "default" },
-    { tag: "ПОЖАРОТУШЕНИЕ", title: "Системы пожаротушения", desc: "Комплексная защита объектов ЖАТ: разработка, производство и внедрение систем пожаротушения под ваш объект.",
-      meta: [["Направление", "Безопасность"], ["Тип", "Пожарная защита"]], href: "https://www.atis-wdu.ru/fire-extinguishing-systems", variant: "amber" },
-    { tag: "ДЭС", title: "Дизельные электростанции", desc: "Резервное электропитание устройств ЖАТ, связи и бытовых потребителей первой особой категории постов ЭЦ.",
-      meta: [["Направление", "Электроснабжение"], ["Тип", "Резервное питание"]], href: "https://www.atis-wdu.ru/diesel-generator-systems", variant: "steel" },
-  ];
-
   return (
 <section className="lineup" id="lineup" style={{
   background: "var(--bg)",
