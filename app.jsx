@@ -231,23 +231,65 @@ function Hero() {
 }
 
 window.Hero = Hero;
-/* FrameSequencer — GSAP ScrollTrigger-pinned video scrubbing. Scroll drives video.currentTime. */
+/* FrameSequencer — desktop: video scrubbing. Mobile: canvas with 3 static PNG frames. */
 
 function FrameSequencer() {
+  const isMobile = window.innerWidth < 760;
   const TOTAL = 240;
-  const stageRef  = React.useRef(null);
-  const pinRef    = React.useRef(null);
-  const videoRef  = React.useRef(null);
-  const stRef     = React.useRef(null);
-  const lockedRef = React.useRef(false);
-  const [loaded,   setLoaded]   = React.useState(false);
-  const [progress, setProgress] = React.useState(0);
+  // Frame indices for each step (15%, 50%, 85% of sequence)
+  const MOBILE_FRAME_INDICES = [36, 120, 203];
+
+  const stageRef   = React.useRef(null);
+  const pinRef     = React.useRef(null);
+  const videoRef   = React.useRef(null);
+  const canvasRef  = React.useRef(null);
+  const mobileImgs = React.useRef([null, null, null]);
+  const stRef      = React.useRef(null);
+  const lockedRef  = React.useRef(false);
+  const [loaded,      setLoaded]      = React.useState(false);
   const [currentStep, setCurrentStep] = React.useState(0);
 
   const STEP_PROGRESS = [0.15, 0.5, 0.85, 0.95];
-  const STEP_NAMES = ['01 / 03', '02 / 03', '03 / 03'];
+
+  // Mobile: load 3 key PNG frames only
+  React.useEffect(() => {
+    if (!isMobile) return;
+    let done = 0;
+    MOBILE_FRAME_INDICES.forEach((frameIdx, i) => {
+      const img = new Image();
+      img.onload = () => {
+        mobileImgs.current[i] = img;
+        done++;
+        if (done === 3) { setLoaded(true); drawMobile(0); }
+      };
+      img.onerror = () => { done++; if (done === 3) setLoaded(true); };
+      img.src = `frames/${String(frameIdx + 1).padStart(3, '0')}.png`;
+    });
+  }, []);
+
+  const drawMobile = (step) => {
+    const canvas = canvasRef.current;
+    const img = mobileImgs.current[step];
+    if (!canvas || !img) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const rect = canvas.getBoundingClientRect();
+    canvas.width  = rect.width  * dpr;
+    canvas.height = rect.height * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const scale = Math.min(canvas.width / img.naturalWidth, canvas.height / img.naturalHeight) * 0.95;
+    const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
+    ctx.drawImage(img, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
+  };
 
   React.useEffect(() => {
+    if (!isMobile) return;
+    drawMobile(currentStep);
+  }, [currentStep, loaded]);
+
+  // Desktop: video ready listener
+  React.useEffect(() => {
+    if (isMobile) return;
     const video = videoRef.current;
     if (!video) return;
     const onReady = () => setLoaded(true);
@@ -258,13 +300,6 @@ function FrameSequencer() {
       video.removeEventListener('loadeddata', onReady);
     };
   }, []);
-
-  const seekTo = (targetProgress) => {
-    const video = videoRef.current;
-    if (!video || !video.duration) return;
-    video.currentTime = targetProgress * video.duration;
-    setProgress(targetProgress);
-  };
 
   const animateToFrame = (targetProgress) => {
     const video = videoRef.current;
@@ -277,137 +312,75 @@ function FrameSequencer() {
       const t = Math.min(1, (now - start) / duration);
       const ease = 1 - Math.pow(1 - t, 3);
       video.currentTime = startTime + (targetTime - startTime) * ease;
-      setProgress(video.currentTime / video.duration);
       if (t < 1) requestAnimationFrame(animate);
     };
     requestAnimationFrame(animate);
   };
-  const STEPS = [0, 1, 2, 'exit'];  // 0,1,2 - этапы, 'exit' - шаг выхода
-  // Переход на этап
+
   const goToStep = (stepIndex) => {
-  if (lockedRef.current) return;
-  
-  // Выход вверх на Hero
-  if (stepIndex < 0) {
-    lockedRef.current = true;
-    const heroSection = document.querySelector('.hero');
-    if (heroSection) {
-      window.gsap.to(window, {
-        scrollTo: { y: heroSection.offsetTop, autoKill: false },
-        duration: 0.6,
-        ease: 'power2.inOut',
-        onComplete: () => { setTimeout(() => { lockedRef.current = false; }, 200); }
-      });
-    } else {
-      lockedRef.current = false;
+    if (lockedRef.current) return;
+    if (stepIndex < 0) {
+      lockedRef.current = true;
+      const heroSection = document.querySelector('.hero');
+      if (heroSection) {
+        window.gsap.to(window, { scrollTo: { y: heroSection.offsetTop, autoKill: false }, duration: 0.6, ease: 'power2.inOut', onComplete: () => { setTimeout(() => { lockedRef.current = false; }, 200); } });
+      } else { lockedRef.current = false; }
+      return;
     }
-    return;
-  }
-  
-  // Выход на Lineup (после exit-шага)
-  if (stepIndex === 3) {
-    lockedRef.current = true;
-    const lineupSection = document.querySelector('.lineup');
-    if (lineupSection) {
-      window.gsap.to(window, {
-        scrollTo: { y: lineupSection.offsetTop, autoKill: false },
-        duration: 0.6,
-        ease: 'power2.inOut',
-        onComplete: () => { setTimeout(() => { lockedRef.current = false; }, 200); }
-      });
-    } else {
-      lockedRef.current = false;
+    if (stepIndex === 3) {
+      lockedRef.current = true;
+      const lineupSection = document.querySelector('.lineup');
+      if (lineupSection) {
+        window.gsap.to(window, { scrollTo: { y: lineupSection.offsetTop, autoKill: false }, duration: 0.6, ease: 'power2.inOut', onComplete: () => { setTimeout(() => { lockedRef.current = false; }, 200); } });
+      } else { lockedRef.current = false; }
+      return;
     }
-    return;
-  }
-  
-  // Обычные этапы (0,1,2)
-  if (stepIndex >= 0 && stepIndex < 3) {
-    lockedRef.current = true;
-    setCurrentStep(stepIndex);
-    animateToFrame(STEP_PROGRESS[stepIndex]);
-    setTimeout(() => { lockedRef.current = false; }, 450);
-  }
-};
-  // Инициализация ScrollTrigger для пина (чтобы секция была прибита)
+    if (stepIndex >= 0 && stepIndex < 3) {
+      lockedRef.current = true;
+      setCurrentStep(stepIndex);
+      if (!isMobile) animateToFrame(STEP_PROGRESS[stepIndex]);
+      setTimeout(() => { lockedRef.current = false; }, 450);
+    }
+  };
+
+  // Desktop: GSAP pin
   React.useEffect(() => {
-    const gsap = window.gsap;
-    const ST   = window.ScrollTrigger;
-    if (!gsap || !ST) { console.warn('GSAP not loaded'); return; }
+    if (isMobile) return;
+    const gsap = window.gsap, ST = window.ScrollTrigger;
+    if (!gsap || !ST) return;
     gsap.registerPlugin(ST);
     if (window.ScrollToPlugin) gsap.registerPlugin(window.ScrollToPlugin);
-    
-    const st = ST.create({
-      trigger: stageRef.current,
-      start: 'top top',
-      end: 'bottom bottom',
-      pin: pinRef.current,
-      pinSpacing: true,
-      scrub: false,
-      invalidateOnRefresh: true
-    });
+    const st = ST.create({ trigger: stageRef.current, start: 'top top', end: 'bottom bottom', pin: pinRef.current, pinSpacing: true, scrub: false, invalidateOnRefresh: true });
     stRef.current = st;
-    
     return () => { st.kill(); stRef.current = null; };
   }, []);
 
-  // Mobile: drive video by scroll position (no snapping)
+  // Desktop: wheel navigation
   React.useEffect(() => {
-    if (window.innerWidth >= 760) return;
-    const handleScroll = () => {
+    if (isMobile) return;
+    const handleWheel = (e) => {
       const seqSection = stageRef.current;
       if (!seqSection) return;
-      const seqTop = seqSection.offsetTop;
-      const seqHeight = seqSection.offsetHeight;
-      const scrollY = window.scrollY;
-      const p = Math.max(0, Math.min(1, (scrollY - seqTop) / Math.max(1, seqHeight - window.innerHeight)));
-      seekTo(p);
+      const rect = seqSection.getBoundingClientRect();
+      if (!(rect.top <= 100 && rect.bottom >= 100)) return;
+      e.preventDefault();
+      if (lockedRef.current) return;
+      const dir = e.deltaY > 0 ? 1 : -1;
+      const newStep = currentStep + dir;
+      if (newStep < 0) goToStep(-1);
+      else if (newStep <= 3) goToStep(newStep);
     };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  // Desktop: step-by-step wheel navigation
-  React.useEffect(() => {
-    if (window.innerWidth < 760) return;
-    const handleWheel = (e) => {
-  const seqSection = stageRef.current;
-  if (!seqSection) return;
-  
-  const rect = seqSection.getBoundingClientRect();
-  const isInSeq = rect.top <= 100 && rect.bottom >= 100;
-  
-  if (!isInSeq) return;
-  
-  e.preventDefault();
-  
-  if (lockedRef.current) return;
-  
-  const dir = e.deltaY > 0 ? 1 : -1;
-  
-  const newStep = currentStep + dir;
-
-  if (newStep < 0) {
-    goToStep(-1); // step 0 + scroll up → go to hero
-  } else if (newStep >= 0 && newStep <= 3) {
-    goToStep(newStep);
-  }
-};
     window.addEventListener('wheel', handleWheel, { passive: false });
     return () => window.removeEventListener('wheel', handleWheel);
   }, [currentStep]);
 
-  // Touch step navigation — desktop only (mobile uses natural scroll)
+  // Desktop: touch navigation
   React.useEffect(() => {
-    if (window.innerWidth < 760) return;
+    if (isMobile) return;
     let touchStartY = 0;
     const onTouchStart = (e) => {
-      const seqSection = stageRef.current;
-      if (!seqSection) return;
-      const rect = seqSection.getBoundingClientRect();
-      if (rect.top <= 10 && rect.bottom >= window.innerHeight * 0.5) {
-        touchStartY = e.touches[0].clientY;
-      }
+      const rect = stageRef.current?.getBoundingClientRect();
+      if (rect && rect.top <= 10 && rect.bottom >= window.innerHeight * 0.5) touchStartY = e.touches[0].clientY;
     };
     const onTouchEnd = (e) => {
       if (!touchStartY) return;
@@ -421,114 +394,100 @@ function FrameSequencer() {
     };
     window.addEventListener('touchstart', onTouchStart, { passive: true });
     window.addEventListener('touchend', onTouchEnd, { passive: true });
-    return () => {
-      window.removeEventListener('touchstart', onTouchStart);
-      window.removeEventListener('touchend', onTouchEnd);
+    return () => { window.removeEventListener('touchstart', onTouchStart); window.removeEventListener('touchend', onTouchEnd); };
+  }, [currentStep]);
+
+  // Mobile: swipe between steps
+  React.useEffect(() => {
+    if (!isMobile) return;
+    let touchStartY = 0;
+    const onTouchStart = (e) => { touchStartY = e.touches[0].clientY; };
+    const onTouchEnd = (e) => {
+      const dy = touchStartY - e.changedTouches[0].clientY;
+      if (Math.abs(dy) < 40) return;
+      const dir = dy > 0 ? 1 : -1;
+      const newStep = currentStep + dir;
+      if (newStep >= 0 && newStep < 3) goToStep(newStep);
     };
+    const section = stageRef.current;
+    if (!section) return;
+    section.addEventListener('touchstart', onTouchStart, { passive: true });
+    section.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => { section.removeEventListener('touchstart', onTouchStart); section.removeEventListener('touchend', onTouchEnd); };
   }, [currentStep]);
 
   const captions = [
-    { num: "01",  title: "Системы электропитания ЖАТ", body: "Проектируем и производим системы электроснабжения для объектов железнодорожной автоматики и телемеханики. Надёжность в каждом узле." },
-    { num: "02",  title: "Дизельные электростанции", body: "Резервное электропитание для устройств ЖАТ, связи и бытовых потребителей первой особой категории. Автономность без компромиссов." },
+    { num: "01", title: "Системы электропитания ЖАТ", body: "Проектируем и производим системы электроснабжения для объектов железнодорожной автоматики и телемеханики. Надёжность в каждом узле." },
+    { num: "02", title: "Дизельные электростанции", body: "Резервное электропитание для устройств ЖАТ, связи и бытовых потребителей первой особой категории. Автономность без компромиссов." },
     { num: "03", title: "Программное обеспечение", body: "ТД-ЭЛ, ПУМА, VORTEX — собственные программные продукты для мониторинга, аналитики и управления бизнес-процессами." },
   ];
 
   return (
-    <section className="seq" ref={stageRef} style={{
-      position: "relative",
-      background: "var(--bg)",
-      overflow: "hidden"
-    }}>
-      {/* Фоновый акцент */}
-      <div style={{
-        position: "absolute",
-        inset: 0,
-        background: "radial-gradient(circle at 70% 20%, rgba(238,53,36,0.03) 0%, rgba(64,83,97,0.00) 70%)",
-        pointerEvents: "none",
-        zIndex: 0
-      }} />
-      
+    <section className="seq" ref={stageRef} style={{ position: "relative", background: "var(--bg)", overflow: "hidden" }}>
+      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 70% 20%, rgba(238,53,36,0.03) 0%, rgba(64,83,97,0.00) 70%)", pointerEvents: "none", zIndex: 0 }} />
+
       <div className="seq-sticky" ref={pinRef} style={{ position: "relative", zIndex: 1 }}>
 
         {/* LEFT PANEL */}
         <div className="seq-panel">
           <div className="seq-skel-wrap" style={{ opacity: !loaded ? 1 : 0, transition: 'opacity 0.7s ease' }}>
             <div className="seq-skel-card">
-              <div className="skel skel-tag" />
-              <div className="skel skel-num" />
-              <div className="skel skel-h1" />
-              <div className="skel skel-h2" />
-              <div className="skel skel-p" />
-              <div className="skel skel-p" style={{ width: '80%' }} />
+              <div className="skel skel-tag" /><div className="skel skel-num" />
+              <div className="skel skel-h1" /><div className="skel skel-h2" />
+              <div className="skel skel-p" /><div className="skel skel-p" style={{ width: '80%' }} />
               <div className="skel skel-p" style={{ width: '60%' }} />
-              <div style={{ flex: 1 }} />
-              <div className="skel skel-btn" />
+              <div style={{ flex: 1 }} /><div className="skel skel-btn" />
             </div>
           </div>
 
-          {/* Активная карточка */}
           {captions.map((c, i) => {
             const isActive = i === currentStep;
             return (
-              <div key={i} className="seq-detail-card" style={{
-                opacity: !loaded ? 0 : (isActive ? 1 : 0),
-                pointerEvents: isActive ? 'auto' : 'none',
-                transition: 'opacity 0.3s ease'
-              }}>
+              <div key={i} className="seq-detail-card" style={{ opacity: !loaded ? 0 : (isActive ? 1 : 0), pointerEvents: isActive ? 'auto' : 'none', transition: 'opacity 0.3s ease' }}>
                 <div className="seq-detail-num mono">{c.num} <span style={{ opacity: 0.4 }}>/ 03</span></div>
                 <h3 className="seq-detail-title">{c.title}</h3>
                 <p className="seq-detail-body">{c.body}</p>
                 <div className="seq-detail-spacer" />
                 <a href="#lineup" className="seq-btn-more">
                   Подробнее
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 </a>
               </div>
             );
           })}
+
+          {/* Mobile step dots */}
+          {isMobile && loaded && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+              {captions.map((_, i) => (
+                <button key={i} onClick={() => goToStep(i)} style={{ width: i === currentStep ? 20 : 6, height: 6, borderRadius: 3, background: i === currentStep ? 'var(--accent)' : 'rgba(255,255,255,0.25)', border: 'none', cursor: 'pointer', padding: 0, transition: 'all 0.3s' }} />
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* RIGHT — video */}
-        <div className="seq-canvas-wrap">
-          <video
-            ref={videoRef}
-            className="seq-canvas"
-            muted
-            playsInline
-            preload="auto"
-            style={{ objectFit: 'cover', width: '100%', height: '100%' }}
-          >
-            <source src="frames.webm" type="video/webm" />
-            <source src="frames.mp4" type="video/mp4" />
-          </video>
-          
-          {/* HUD */}
-          <div className="seq-hud-top">
-            <div className="seq-counter mono">
-              Этап <span className="seq-num">{String(currentStep + 1).padStart(2, '0')}</span> / 03
-            </div>
-            <div className="seq-progress">
-              <div className="seq-track">
-                <div className="seq-bar" style={{ width: ((currentStep + 1) / 3 * 100) + '%' }} />
-              </div>
-            </div>
-          </div>
-
-          {!loaded && (
-            <div className="seq-loading mono">Загрузка…</div>
+        {/* RIGHT — video (desktop) or canvas (mobile) */}
+        <div className="seq-canvas-wrap" style={{ background: 'var(--bg)' }}>
+          {isMobile ? (
+            <canvas ref={canvasRef} className="seq-canvas" />
+          ) : (
+            <video ref={videoRef} className="seq-canvas" muted playsInline preload="auto" style={{ objectFit: 'cover', width: '100%', height: '100%' }}>
+              <source src="frames.webm" type="video/webm" />
+              <source src="frames.mp4" type="video/mp4" />
+            </video>
           )}
 
-          {/* Подсказка */}
+          {/* HUD */}
+          <div className="seq-hud-top">
+            <div className="seq-counter mono">Этап <span className="seq-num">{String(currentStep + 1).padStart(2, '0')}</span> / 03</div>
+            <div className="seq-progress"><div className="seq-track"><div className="seq-bar" style={{ width: ((currentStep + 1) / 3 * 100) + '%' }} /></div></div>
+          </div>
+
+          {!loaded && <div className="seq-loading mono">Загрузка…</div>}
+
           <div className="seq-hint mono">
-            <span>{currentStep < 2 ? 'Прокрутите → следующий этап' : 'Прокрутите → далее'}</span>
-            <svg width="14" height="22" viewBox="0 0 14 22" fill="none">
-              <rect x="0.5" y="0.5" width="13" height="21" rx="6.5" stroke="currentColor"/>
-              <circle cx="7" cy="7" r="2" fill="currentColor">
-                <animate attributeName="cy" values="6;12;6" dur="1.6s" repeatCount="indefinite"/>
-              </circle>
-            </svg>
+            <span>{isMobile ? 'Свайп для следующего этапа' : (currentStep < 2 ? 'Прокрутите → следующий этап' : 'Прокрутите → далее')}</span>
+            <svg width="14" height="22" viewBox="0 0 14 22" fill="none"><rect x="0.5" y="0.5" width="13" height="21" rx="6.5" stroke="currentColor"/><circle cx="7" cy="7" r="2" fill="currentColor"><animate attributeName="cy" values="6;12;6" dur="1.6s" repeatCount="indefinite"/></circle></svg>
           </div>
         </div>
 
