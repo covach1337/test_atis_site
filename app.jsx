@@ -474,7 +474,7 @@ function FrameSequencer() {
 
           {/* Mobile: top info panel + bottom fade */}
           {isMobile && (
-            <div className="seq-mob-top">
+            <div className="seq-mob-top" style={{ paddingTop: 110 }}>
               {!loaded ? (
                 <div className="seq-mob-skel">
                   <div className="skel" style={{ width: '40%', height: 11, borderRadius: 4 }} />
@@ -492,7 +492,7 @@ function FrameSequencer() {
                     Подробнее
                     <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   </a>
-                  <div className="seq-mob-progress" style={{ marginTop: 20 }}>
+                  <div className="seq-mob-progress" style={{ paddingTop: 60 }}>
                     {captions.map((_, idx) => (
                       <div key={idx} className={`seq-mob-dot${currentStep === idx ? ' active' : ''}`} />
                     ))}
@@ -503,7 +503,7 @@ function FrameSequencer() {
           )}
         {isMobile && (
   <>
- <div className="seq-mob-bot" style={{ textAlign: 'center' }}>
+ <div className="seq-mob-bot" style={{  padding :'100px' , textAlign: 'center' }}>
   <div className="seq-mob-step mono" style={{ opacity: 0.7 }}>
     Обзор
   </div>
@@ -535,15 +535,6 @@ function FrameSequencer() {
   <a href="#lineup" className="seq-mob-btn" style={{ justifyContent: 'center' }}>
     Подробнее
   </a>
-
-  <div className="seq-mob-progress" style={{ marginTop: 20, justifyContent: 'center', display: 'flex' }}>
-    {captions.map((_, idx) => (
-      <div 
-        key={idx} 
-        className={`seq-mob-dot${currentStep === idx ? ' active' : ''}`} 
-      />
-    ))}
-  </div>
 </div>
   </>
 )}
