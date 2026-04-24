@@ -501,8 +501,52 @@ function FrameSequencer() {
               )}
             </div>
           )}
-          {isMobile && <div className="seq-mob-bot" />}
+        {isMobile && (
+  <>
+ <div className="seq-mob-bot" style={{ textAlign: 'center' }}>
+  <div className="seq-mob-step mono" style={{ opacity: 0.7 }}>
+    Обзор
+  </div>
 
+  <div 
+    className="seq-mob-title" 
+    style={{ 
+      maxWidth: 260, 
+      margin: '0 auto', 
+      lineHeight: 1.3 
+    }}
+  >
+    Исследуйте ключевые идеи и направления
+  </div>
+
+  <p 
+    style={{ 
+      fontSize: 13, 
+      lineHeight: 1.6, 
+      color: 'var(--ink-dim)', 
+      margin: '12px auto 18px',
+      maxWidth: 280
+    }}
+  >
+    Погрузитесь в общую концепцию и ознакомьтесь с основными элементами, 
+    формирующими целостное представление.
+  </p>
+
+  <a href="#lineup" className="seq-mob-btn" style={{ justifyContent: 'center' }}>
+    Подробнее
+  </a>
+
+  <div className="seq-mob-progress" style={{ marginTop: 20, justifyContent: 'center', display: 'flex' }}>
+    {captions.map((_, idx) => (
+      <div 
+        key={idx} 
+        className={`seq-mob-dot${currentStep === idx ? ' active' : ''}`} 
+      />
+    ))}
+  </div>
+</div>
+  </>
+)}
           {/* Desktop: HUD + hint */}
           {!isMobile && (
             <>
