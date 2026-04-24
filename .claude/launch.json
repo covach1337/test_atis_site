@@ -1,1 +1,11 @@
-{"version":"0.0.1","configurations":[{"name":"atis-site","runtimeExecutable":"npx","runtimeArgs":["serve","-l","3456","D:/test_atis_site"],"port":3456}]}
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "atis-site",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["start"],
+      "port": 3000
+    }
+  ]
+}

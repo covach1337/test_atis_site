@@ -234,7 +234,13 @@ window.Hero = Hero;
 /* FrameSequencer — desktop: video scrubbing. Mobile: canvas + 240 WebP frames scroll-driven. */
 
 function FrameSequencer() {
-  const isMobile = window.innerWidth < 760;
+  const [vw, setVw] = React.useState(window.innerWidth);
+  React.useEffect(() => {
+    const onResize = () => setVw(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const isMobile = vw < 760;
   const TOTAL = 240;
 
   const stageRef    = React.useRef(null);
@@ -277,7 +283,7 @@ function FrameSequencer() {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [isMobile]);
 
   const drawMobileFrame = (idx) => {
     const canvas = canvasRef.current;
@@ -291,9 +297,11 @@ function FrameSequencer() {
     }
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const scale = Math.min(canvas.width / img.naturalWidth, canvas.height / img.naturalHeight) * 0.95;
+    const scale = (canvas.width / img.naturalWidth) * 1.55;
     const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
-    ctx.drawImage(img, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
+    const dx = (canvas.width - dw) / 2;
+    const dy = canvas.height * 0.32;
+    ctx.drawImage(img, dx, dy, dw, dh);
   };
 
   // Mobile: resize canvas
@@ -311,7 +319,7 @@ function FrameSequencer() {
     resize();
     window.addEventListener('resize', resize);
     return () => window.removeEventListener('resize', resize);
-  }, []);
+  }, [isMobile]);
 
   // Mobile: scroll drives frame index + currentStep
   React.useEffect(() => {
@@ -330,7 +338,7 @@ function FrameSequencer() {
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [isMobile]);
 
   // Desktop: video ready listener
   React.useEffect(() => {
@@ -454,103 +462,6 @@ function FrameSequencer() {
 
       <div className="seq-sticky" ref={pinRef} style={{ position: "relative", zIndex: 1 }}>
 
-  {/* Mobile: bottom overlay — теперь полноценная информационная панель */}
-{isMobile && (
-  <div className="seq-mob-bot" style={{
-    background: "var(--bg)",
-    padding: "24px 20px 32px",
-    marginTop: "-4px", // убираем возможный зазор
-    borderTop: "1px solid var(--line)"
-  }}>
-    {!loaded ? (
-      /* Скелетон загрузки */
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <div className="skel" style={{ width: '45%', height: 20, borderRadius: 8 }} />
-        <div className="skel" style={{ width: '90%', height: 14, borderRadius: 6 }} />
-        <div className="skel" style={{ width: '75%', height: 14, borderRadius: 6 }} />
-        <div className="skel" style={{ width: '50%', height: 44, borderRadius: 100, marginTop: 8 }} />
-        <div className="seq-mob-loading mono" style={{ marginTop: 12, textAlign: "center", color: "var(--ink-dim)" }}>
-          Загрузка {Math.round(loadedCount / TOTAL * 100)}%
-        </div>
-      </div>
-    ) : (
-      /* Полноценный информационный блок */
-      <>
-        <div className="mono" style={{ 
-          fontSize: 11, 
-          color: "var(--accent)", 
-          marginBottom: 12,
-          letterSpacing: "0.1em"
-        }}>
-          {captions[currentStep].tag}
-        </div>
-        
-        <div className="seq-mob-title" style={{
-          fontSize: 24,
-          fontWeight: 700,
-          color: "var(--ink)",
-          marginBottom: 12,
-          lineHeight: 1.2
-        }}>
-          {captions[currentStep].title}
-        </div>
-        
-        <p style={{
-          fontSize: 14,
-          lineHeight: 1.5,
-          color: "var(--ink-dim)",
-          marginBottom: 20
-        }}>
-          {captions[currentStep].body}
-        </p>
-        
-        <a href="#lineup" className="btn-primary" style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 10,
-          marginTop: 8
-        }}>
-          Подробнее
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M1 7h12M8 2l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
-        </a>
-        
-        {/* Прогресс-точки для навигации */}
-        <div style={{
-          display: "flex",
-          justifyContent: "center",
-          gap: 8,
-          marginTop: 28
-        }}>
-          {captions.map((_, idx) => (
-            <button
-              key={idx}
-              onClick={() => {
-                // скролл к соответствующей позиции
-                const section = stageRef.current;
-                if (section) {
-                  const targetScroll = section.offsetTop + (idx / 3) * (section.offsetHeight - window.innerHeight);
-                  window.scrollTo({ top: targetScroll, behavior: "smooth" });
-                }
-              }}
-              style={{
-                width: currentStep === idx ? 24 : 8,
-                height: 8,
-                borderRadius: 4,
-                background: currentStep === idx ? "var(--accent)" : "var(--line)",
-                border: "none",
-                cursor: "pointer",
-                transition: "all 0.2s ease"
-              }}
-            />
-          ))}
-        </div>
-      </>
-    )}
-  </div>
-)}
-
         {/* Canvas / Video */}
         <div className="seq-canvas-wrap">
           {isMobile
@@ -561,27 +472,36 @@ function FrameSequencer() {
               </video>
           }
 
-   
-          {/* Mobile: bottom overlay (empty area below 16:9 image) */}
+          {/* Mobile: top info panel + bottom fade */}
           {isMobile && (
-            <div className="seq-mob-bot">
+            <div className="seq-mob-top">
               {!loaded ? (
                 <div className="seq-mob-skel">
-                  <div className="skel" style={{ width: '55%', height: 22, borderRadius: 6 }} />
-                  <div className="skel" style={{ width: '80%', height: 14, borderRadius: 6 }} />
-                  <div className="skel" style={{ width: '40%', height: 32, borderRadius: 100, marginTop: 4 }} />
-                  <div className="seq-mob-loading mono" style={{ marginTop: 8 }}>Загрузка {Math.round(loadedCount / TOTAL * 100)}%</div>
+                  <div className="skel" style={{ width: '40%', height: 11, borderRadius: 4 }} />
+                  <div className="skel" style={{ width: '75%', height: 22, borderRadius: 6 }} />
+                  <div className="skel" style={{ width: '90%', height: 13, borderRadius: 4 }} />
+                  <div className="skel" style={{ width: '42%', height: 36, borderRadius: 100, marginTop: 4 }} />
+                  <div className="seq-mob-loading mono" style={{ marginTop: 12 }}>Загрузка {Math.round(loadedCount / TOTAL * 100)}%</div>
                 </div>
               ) : (
                 <>
+                  <div className="seq-mob-step mono">{captions[currentStep].tag}</div>
                   <div className="seq-mob-title" style={{ transition: 'opacity 0.3s' }}>{captions[currentStep].title}</div>
-                  <a href="#lineup" className="seq-mob-btn">Подробнее
+                  <p style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--ink-dim)', marginBottom: 16 }}>{captions[currentStep].short}</p>
+                  <a href="#lineup" className="seq-mob-btn">
+                    Подробнее
                     <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   </a>
+                  <div className="seq-mob-progress" style={{ marginTop: 20 }}>
+                    {captions.map((_, idx) => (
+                      <div key={idx} className={`seq-mob-dot${currentStep === idx ? ' active' : ''}`} />
+                    ))}
+                  </div>
                 </>
               )}
             </div>
           )}
+          {isMobile && <div className="seq-mob-bot" />}
 
           {/* Desktop: HUD + hint */}
           {!isMobile && (
